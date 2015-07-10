@@ -89,7 +89,7 @@ public:
   
   
   String getValueName(int num) {
-    return "Temperature";
+    return "Thermistor Temperature";
   }
   
 };
@@ -152,23 +152,29 @@ void setup() {
   Serial.begin(9600);
   while (WiFi.begin(network) != WL_CONNECTED);
   Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1)};
-  int sensorsLength = 1;
+  int sensorsLength = 2;
   Output* outputs[] = {new SerialOutput(), new ThingspeakOutput()};
   int outputsLength = 2;
   while (true) {
+    int valsLength = 0;
+    for (int i = 0; i < sensorsLength; i++) {
+      valsLength += sensors[i]->getNumberOfValues();
+    }
+    float vals[valsLength];
+    String headers[valsLength];
+    int currVal = 0;
+    int currHeader = 0;
     for (int i = 0; i < sensorsLength; i++) {
       int num = sensors[i]->getNumberOfValues();
-      float vals[num];
-      String headers[num];
       for (int n = 0; n < num; n++) {
-        vals[n] = sensors[i]->getValue(n);
+        vals[currVal++] = sensors[i]->getValue(n);
       }
       for (int n = 0; n < num; n++) {
-        headers[n] = sensors[i]->getValueName(n);
+        headers[currHeader++] = sensors[i]->getValueName(n);
       }
-      for (int n = 0; n < outputsLength; n++) {
-        outputs[n]->outputData(headers, vals, num);
-      }
+    }
+    for (int n = 0; n < outputsLength; n++) {
+      outputs[n]->outputData(headers, vals, valsLength);
     }
     delay(5000);
   }
