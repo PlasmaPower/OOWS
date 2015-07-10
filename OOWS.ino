@@ -9,30 +9,31 @@
 #define THERM_PIN 2
 #define AREF_VOLTAGE 5
 #define THERM_RESISTOR 10000
+#define network "Bronco-Guest"
 
 WiFiClient client;
+
+float readVoltage(int pin) {
+  /*
+  analogRead reads a value from the sensor, but scales it from 0-1023
+  It instead should be from 0 volts to the constant AREF_VOLTAGE (maximum number of volts)
+  To undo the scaling, we use a ratio
+  */
+  return analogRead(pin) * AREF_VOLTAGE / 1023.0;
+}
 
 class Sensor {
 public:
   int virtual getNumberOfValues() = 0;
   float virtual getValue(int num) = 0;
   String virtual getValueName(int num) = 0;
-  
-  float readVoltage(int pin) {
-    /*
-    analogRead reads a value from the sensor, but scales it from 0-1023
-    It instead should be from 0 volts to the constant AREF_VOLTAGE (maximum number of volts)
-    To undo the scaling, we use a ratio
-    */
-    return analogRead(pin) * AREF_VOLTAGE / 1023.0;
-  }
 };
 
 class DHT22Sensor : public Sensor {
 protected:
   DHT dht;
 public:
-  DHT22Sensor(int pin) : dht(DHT22, pin) {
+  DHT22Sensor(int pin) : dht(pin, DHT22) {
     dht.begin();
   }
   
@@ -96,20 +97,26 @@ public:
 
 class Output {
 public:
-  void virtual outputData(int data[], int dataLength) = 0;
+  void virtual outputData(float data[], int dataLength) {};
+  void virtual outputData(String headers[], float data[], int dataLength) {
+    this->outputData(data, dataLength);
+  }
 };
 
 class ThingspeakOutput : public Output {
 public:
   ThingspeakOutput() {}
 
-  void outputData(int data[], int dataLength) {
+  void outputData(float data[], int dataLength) {
     String dataStr = "";
     for (int i = 0; i < dataLength; i++) {
       dataStr += String("field") + String(i) + String("=") + String(data[i]);
       if (i < dataLength - 1) {
         dataStr += "&";
       }
+    }
+    if (WiFi.status() != WL_CONNECTED) {
+      while (WiFi.begin(network) != WL_CONNECTED);
     }
     if (client.connect("api.thingspeak.com", 80)) {
       client.print("POST /update HTTP/1.1\n");
@@ -124,24 +131,48 @@ public:
   }
 };
 
+class SerialOutput : public Output {
+public:
+  SerialOutput() {}
+
+  void outputData(String headers[], float data[], int dataLength) {
+    for (int i = 0; i < dataLength; i++) {
+      Serial.print(headers[i]);
+      Serial.print(": ");
+      Serial.print(String(data[i]));
+      if (i < dataLength - 1) {
+        Serial.print(", ");
+      }
+    }
+    Serial.println();
+  }
+};
+
 void setup() {
-  while (WiFi.begin("Bronco-Guest") != WL_CONNECTED);
+  Serial.begin(9600);
+  while (WiFi.begin(network) != WL_CONNECTED);
   Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1)};
-  int sensorsLength = 2;
-  Output* outputs[] = {new ThingspeakOutput()};
-  int outputsLength = 1;
-  for (int i = 0; i < sensorsLength; i++) {
-    int num = sensors[i]->getNumberOfValues();
-    int vals[num];
-    for (int n = 0; n < num; n++) {
-      vals[n] = sensors[i]->getValue(n);
+  int sensorsLength = 1;
+  Output* outputs[] = {new SerialOutput(), new ThingspeakOutput()};
+  int outputsLength = 2;
+  while (true) {
+    for (int i = 0; i < sensorsLength; i++) {
+      int num = sensors[i]->getNumberOfValues();
+      float vals[num];
+      String headers[num];
+      for (int n = 0; n < num; n++) {
+        vals[n] = sensors[i]->getValue(n);
+      }
+      for (int n = 0; n < num; n++) {
+        headers[n] = sensors[i]->getValueName(n);
+      }
+      for (int n = 0; n < outputsLength; n++) {
+        outputs[n]->outputData(headers, vals, num);
+      }
     }
-    for (int n = 0; n < outputsLength; n++) {
-      outputs[n]->outputData(vals, num);
-    }
+    delay(5000);
   }
 }
 
-void loop() {
-  
-}
+void loop() {}
+
