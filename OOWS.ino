@@ -11,6 +11,17 @@
 #define THERM_RESISTOR 10000
 #define network "Bronco-Guest"
 
+//Thermocouple Constants http://www.mosaic-industries.com/embedded-systems/microcontroller-projects/temperature-measurement/thermocouple/type-t-calibration-table
+#define T0 1.3500000*100
+#define V0 5.9588600
+#define P1 2.0325591*10
+#define P2 3.3013079
+#define P3 1.2638462*0.1
+#define P4 -8.2883695*0.0001
+#define Q1 1.7595577*0.1
+#define Q2 7.9740521*0.001
+#define Q3 0
+
 WiFiClient client;
 
 float readVoltage(int pin) {
@@ -94,6 +105,30 @@ public:
   
 };
 
+class ThermocoupleSensor : public Sensor {
+protected:
+  int pin;
+
+public:
+  ThermocoupleSensor(int pin) {
+    this->pin = pin;
+  }
+
+  int getNumberOfValues() {
+    return 1;
+  }
+  
+  float getValue(int num){
+    float V = readVoltage(pin);
+    float thermoTemperature = T0+((V-V0)*(P1+(V-V0)*(P2+(V-V0)*(P3+P4*(V-V0)))))/(1+(V-V0)*(Q1+(V-V0)*(Q2+Q3*(V-V0))));
+    
+    return thermoTemperature;
+  }
+  
+  String getValueName(int num) {
+    return "Thermocouple Temperature";
+  }
+};
 
 class Output {
 public:
@@ -151,8 +186,8 @@ public:
 void setup() {
   Serial.begin(9600);
   while (WiFi.begin(network) != WL_CONNECTED);
-  Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1)};
-  int sensorsLength = 2;
+  Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1), new ThermocoupleSensor(1)};
+  int sensorsLength = 3;
   Output* outputs[] = {new SerialOutput(), new ThingspeakOutput()};
   int outputsLength = 2;
   while (true) {
@@ -181,4 +216,3 @@ void setup() {
 }
 
 void loop() {}
-
