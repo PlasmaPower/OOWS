@@ -217,7 +217,9 @@ class SerialOutput : public Output {
     }
 };
 
-void setup() {
+void setup() {}
+
+void loop() {
   Serial.begin(9600);
   Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1), new ThermocoupleSensor(1)};
   int sensorsLength = 3;
@@ -247,5 +249,3 @@ void setup() {
     delay(5000);
   }
 }
-
-void loop() {}
