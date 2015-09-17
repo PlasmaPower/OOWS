@@ -140,6 +140,38 @@ class ThermocoupleSensor : public Sensor {
     }
 };
 
+volatile int tippingBucketCount;
+
+void incrementTippingBucketCount() {
+  tippingBucketCount++;
+}
+
+class TippingBucket : public Sensor {
+  protected:
+    bool interruptAttached = false;
+  public:
+    TippingBucket() {
+      if (!interruptAttached) {
+        attachInterrupt(digitalPinToInterrupt(7), incrementTippingBucketCount, RISING);
+        interruptAttached = true;
+      }
+    }
+      
+    int getNumberOfValues() {
+      return 1;
+    }
+
+    float getValue(int num) {
+      int tmp = tippingBucketCount;
+      tippingBucketCount = 0;
+      return tmp;
+    }
+
+    String getValueName(int num) {
+      return "Tipping Bucket Pulses";
+    }
+};
+
 class Output {
   public:
     void virtual outputData(float data[], int dataLength) {};
@@ -221,8 +253,8 @@ void setup() {}
 
 void loop() {
   Serial.begin(9600);
-  Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1), new ThermocoupleSensor(1)};
-  int sensorsLength = 3;
+  Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1), new ThermocoupleSensor(2), new TippingBucket()};
+  int sensorsLength = 4;
   Output* outputs[] = {new SerialOutput(), new ThingspeakOutput()};
   int outputsLength = 2;
   while (true) {
