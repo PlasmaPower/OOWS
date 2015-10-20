@@ -150,9 +150,9 @@ class TippingBucket : public Sensor {
   protected:
     bool interruptAttached = false;
   public:
-    TippingBucket() {
+    TippingBucket(int pin) {
       if (!interruptAttached) {
-        attachInterrupt(digitalPinToInterrupt(7), incrementTippingBucketCount, RISING);
+        attachInterrupt(digitalPinToInterrupt(pin), incrementTippingBucketCount, RISING);
         interruptAttached = true;
       }
     }
@@ -253,7 +253,7 @@ void setup() {}
 
 void loop() {
   Serial.begin(9600);
-  Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1), new ThermocoupleSensor(2), new TippingBucket()};
+  Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1), new ThermocoupleSensor(2), new TippingBucket(7)};
   int sensorsLength = 4;
   Output* outputs[] = {new SerialOutput(), new ThingspeakOutput()};
   int outputsLength = 2;
