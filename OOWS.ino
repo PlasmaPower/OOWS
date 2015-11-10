@@ -2,6 +2,8 @@
 #include <DHT.h>
 #include <WiFi.h>
 
+#include "config.h"
+
 #define THERM_A_COEFFICIENT 0.003354015
 #define THERM_B_COEFFICIENT 0.000256277
 #define THERM_C_COEFFICIENT 0.000002082921
@@ -9,8 +11,6 @@
 #define THERM_PIN 2
 #define AREF_VOLTAGE 5
 #define THERM_RESISTOR 10000
-#define NETWORK "Bronco-Guest"
-#define APIKEY String("USV4OP96Q9662WRD")
 
 //Thermocouple Constants http://www.mosaic-industries.com/embedded-systems/microcontroller-projects/temperature-measurement/thermocouple/type-t-calibration-table
 #define T0 1.3500000*100
@@ -24,6 +24,7 @@
 #define Q3 0
 
 WiFiClient client;
+int failedCounter = 0;
 
 void startWiFi() {
   client.stop();
@@ -43,6 +44,47 @@ float readVoltage(int pin) {
   return analogRead(pin) * AREF_VOLTAGE / 1023.0;
 }
 
+boolean sendHTTP(String host, int port, String request, String string) {
+  client.stop();
+  if (client.connect(host.c_str(), port)) {
+    client.print(request + " HTTP/1.1\n");
+    client.print("Host: " + host + "\n");
+    client.print("Connection: close\n");
+    client.print("Content-Type: application/x-www-form-urlencoded\n");
+    if (string.length() > 0) {
+      client.print("Content-Length: ");
+      client.print(string.length());
+    }
+    client.print("\n\n");
+  
+    client.print(string);
+  
+    if (client.connected()) {
+      Serial.println("Connecting to host...");
+      Serial.println();
+  
+      failedCounter = 0;
+      return true;
+    }
+    else {
+      failedCounter++;
+  
+      Serial.println("Connection to host failed (" + String(failedCounter, DEC) + ")");
+      Serial.println();
+    }
+  
+  } else {
+    failedCounter++;
+  
+    Serial.println("Connection to host Failed (" + String(failedCounter, DEC) + ")");
+    Serial.println();
+  }
+  if (failedCounter > 3) {
+    startWiFi();
+    return false;
+  }
+}
+
 class Sensor {
   public:
     int virtual getNumberOfValues() = 0;
@@ -53,9 +95,11 @@ class Sensor {
 class DHT22Sensor : public Sensor {
   protected:
     DHT dht;
+    int pin;
   public:
     DHT22Sensor(int pin) : dht(pin, DHT22) {
       dht.begin();
+      this->pin = pin;
     }
 
     int getNumberOfValues() {
@@ -76,9 +120,9 @@ class DHT22Sensor : public Sensor {
     String getValueName(int num) {
       switch (num) {
         case 0:
-          return "Temperature";
+          return "DHT_pin_" + String(pin) + "_temperature";
         case 1:
-          return "Humidity";
+          return "DHT_pin_" + String(pin) + "_humidity";
         default:
           return "";
       }
@@ -110,7 +154,7 @@ class ThermistorSensor : public Sensor {
 
 
     String getValueName(int num) {
-      return "Thermistor Temperature";
+      return "thermistor_pin_" + String(pin) + "_temperature";
     }
 
 };
@@ -136,7 +180,7 @@ class ThermocoupleSensor : public Sensor {
     }
 
     String getValueName(int num) {
-      return "Thermocouple Temperature";
+      return "thermocouple_pin_" + String(pin) + "_temperature";
     }
 };
 
@@ -149,12 +193,14 @@ void incrementTippingBucketCount() {
 class TippingBucket : public Sensor {
   protected:
     bool interruptAttached = false;
+    int pin;
   public:
     TippingBucket(int pin) {
       if (!interruptAttached) {
         attachInterrupt(digitalPinToInterrupt(pin), incrementTippingBucketCount, RISING);
         interruptAttached = true;
       }
+      this->pin = pin;
     }
       
     int getNumberOfValues() {
@@ -168,7 +214,7 @@ class TippingBucket : public Sensor {
     }
 
     String getValueName(int num) {
-      return "Tipping Bucket Pulses";
+      return "tipping_bucket_pin_" + String(pin) + "_Pulses";
     }
 };
 
@@ -179,8 +225,6 @@ class Output {
       this->outputData(data, dataLength);
     }
 };
-
-int failedCounter = 0;
 
 class ThingspeakOutput : public Output {
   public:
@@ -194,41 +238,25 @@ class ThingspeakOutput : public Output {
           tsData += "&";
         }
       }
-      client.stop();
-      if (client.connect("api.thingspeak.com", 80)) {
-        client.print("POST /update HTTP/1.1\n");
-        client.print("Host: api.thingspeak.com\n");
-        client.print("Connection: close\n");
-        client.print("X-THINGSPEAKAPIKEY: " + APIKEY + "\n");
-        client.print("Content-Type: application/x-www-form-urlencoded\n");
-        client.print("Content-Length: ");
-        client.print(tsData.length());
-        client.print("\n\n");
+      sendHTTP("api.thingspeak.com", 80, "POST /update", tsData);
+    }
+};
 
-        client.print(tsData);
+class CustomDataServerOutput : public Output {
+  public:
+    CustomDataServerOutput() {
+      sendHTTP(CUSTOM_DATA_SERVER_HOST, 3000, "GET /arduino/" + ARDUINO_NAME + "/init", ""); // TODO: Host on AWS and get actual IP
+    }
 
-        if (client.connected()) {
-          Serial.println("Connecting to ThingSpeak...");
-          Serial.println();
-
-          failedCounter = 0;
+    void outputData(String headers[], float data[], int dataLength) {
+      String strData = "";
+      for (int i = 0; i < dataLength; i++) {
+        strData += headers[i] + String("=") + String(data[i]);
+        if (i < dataLength - 1) {
+          strData += "&";
         }
-        else {
-          failedCounter++;
-
-          Serial.println("Connection to ThingSpeak failed (" + String(failedCounter, DEC) + ")");
-          Serial.println();
-        }
-
-      } else {
-        failedCounter++;
-
-        Serial.println("Connection to ThingSpeak Failed (" + String(failedCounter, DEC) + ")");
-        Serial.println();
       }
-      if (failedCounter > 3) {
-        startWiFi();
-      }
+      sendHTTP(CUSTOM_DATA_SERVER_HOST, 3000, "POST /arduino/" + ARDUINO_NAME + "/addData", strData);
     }
 };
 
