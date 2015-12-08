@@ -1,6 +1,5 @@
 #include <SPI.h>
 #include <DHT.h>
-#include <WiFi.h>
 
 #include "config.h"
 
@@ -11,6 +10,18 @@
 #define THERM_PIN 2
 #define AREF_VOLTAGE 5
 #define THERM_RESISTOR 10000
+
+#define WIFI_CONNECT_ATTEMPTS 4
+#define CC3000_SHIELD
+
+#ifdef WIFI_SHIELD
+  #include <WiFi.h>
+#endif
+
+#ifdef CC3000_SHIELD
+  #define CC3000_TINY_DRIVER
+  #include <Adafruit_CC3000.h>
+#endif
 
 //Thermocouple Constants http://www.mosaic-industries.com/embedded-systems/microcontroller-projects/temperature-measurement/thermocouple/type-t-calibration-table
 #define T0 1.3500000*100
@@ -23,16 +34,66 @@
 #define Q2 7.9740521*0.001
 #define Q3 0
 
-WiFiClient client;
+#ifdef WIFI_SHIELD
+  WiFiClient client;
+#endif
+
+#ifdef CC3000_SHIELD
+  // These are the interrupt and control pins
+  #define ADAFRUIT_CC3000_IRQ   3  // MUST be an interrupt pin!
+  // These can be any two pins
+  #define ADAFRUIT_CC3000_VBAT  5
+  #define ADAFRUIT_CC3000_CS    10
+  // Use hardware SPI for the remaining pins
+  // On an UNO, SCK = 13, MISO = 12, and MOSI = 11
+  Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ, ADAFRUIT_CC3000_VBAT, SPI_CLOCK_DIVIDER);
+#endif
+
 int failedCounter = 0;
 
+void initShields() {
+  #ifdef CC3000_SHIELD
+    if (!cc3000.begin()) {
+      Serial.println("Could not connect to cc3000, please check your wiring");
+    }
+  #endif
+}
+
 void startWiFi() {
-  client.stop();
-  delay(1000);
-  while (WiFi.begin(NETWORK) != WL_CONNECTED) {
-    Serial.println("Failed to connect to network, trying again...");
-  }
-  Serial.println("Connected to network");
+  #ifdef WIFI_SHIELD
+    Serial.println("Connecting to " + String(NETWORK));
+    if (client.connected()) {
+      Serial.println("Currently connected, stopping");
+      client.stop();
+    }
+    delay(1000);
+    int error = WL_CONNECTED;
+    for (int i = 0; i < WIFI_CONNECT_ATTEMPTS; i++) {
+      error = WiFi.begin(NETWORK);
+      if (error == WL_CONNECTED) {
+        Serial.println("Connected to " + String(NETWORK));
+        break;
+      }
+      if (i < WIFI_CONNECT_ATTEMPTS - 1) {
+        Serial.println("Failed to connect to " + String(NETWORK) + " with error code " + String(error) + ", trying again...");
+      } else {
+        Serial.println("!!ERROR!! Failed to connect to " + String(NETWORK) + " " + String(WIFI_CONNECT_ATTEMPTS) + " times ending with error code " + String(error) +
+          ", will NOT try again until wifi is used again");
+      }
+      if (error == WL_CONNECTED) {
+        delay(1000);
+      }
+    }
+  #endif
+
+  #ifdef CC3000_SHIELD
+    Serial.println("Connecting to " + String(NETWORK));
+    if (cc3000.connectToAP(NETWORK, "", WLAN_SEC_UNSEC, WIFI_CONNECT_ATTEMPTS)) {
+      Serial.println("Connected to " + String(NETWORK));
+    } else {
+      Serial.println("Failed to connect to " + String(NETWORK));
+    }
+  #endif
 }
 
 float readVoltage(int pin) {
@@ -45,42 +106,86 @@ float readVoltage(int pin) {
 }
 
 boolean sendHTTP(String host, int port, String request, String string) {
-  client.stop();
-  if (client.connect(host.c_str(), port)) {
-    client.print(request + " HTTP/1.1\n");
-    client.print("Host: " + host + "\n");
-    client.print("Connection: close\n");
-    client.print("Content-Type: application/x-www-form-urlencoded\n");
-    if (string.length() > 0) {
-      client.print("Content-Length: ");
-      client.print(string.length());
-    }
-    client.print("\n\n");
-  
-    client.print(string);
-  
-    if (client.connected()) {
-      Serial.println("Connecting to host...");
-      Serial.println();
-  
-      failedCounter = 0;
-      return true;
-    }
-    else {
+  #ifdef WIFI_SHIELD
+    Serial.println("Sending HTTP message...");
+    client.stop();
+    if (client.connect(host.c_str(), port)) {
+      client.print(request + " HTTP/1.1\n");
+      client.print("Host: " + host + "\n");
+      client.print("Connection: close\n");
+      client.print("Content-Type: application/x-www-form-urlencoded\n");
+      if (string.length() > 0) {
+        client.print("Content-Length: ");
+        client.print(string.length());
+      }
+      client.print("\n\n");
+
+      client.print(string);
+
+      if (client.connected()) {
+        Serial.println("Successfully sent message!");
+
+        failedCounter = 0;
+        return true;
+      }
+      else {
+        failedCounter++;
+
+        Serial.println("Connection to host failed (" + String(failedCounter, DEC) + ")");
+        Serial.println();
+      }
+
+    } else {
       failedCounter++;
-  
-      Serial.println("Connection to host failed (" + String(failedCounter, DEC) + ")");
+
+      Serial.println("Connection to host Failed (" + String(failedCounter, DEC) + ")");
       Serial.println();
     }
-  
-  } else {
-    failedCounter++;
-  
-    Serial.println("Connection to host Failed (" + String(failedCounter, DEC) + ")");
-    Serial.println();
-  }
-  if (failedCounter > 3) {
+  #endif
+  if (failedCounter >= 20) {
     startWiFi();
+    failedCounter = 0;
+    return false;
+  }
+}
+
+boolean sendHTTP(uint32_t ip, int port, String request, String string) {
+  #ifdef CC3000_SHIELD
+    Serial.println("Sending HTTP message...");
+    Adafruit_CC3000_Client socket = cc3000.connectTCP(ip, port);
+    if (socket.connected()) {
+      socket.print(request + " HTTP/1.0\n");
+      socket.print("Connection: close\n");
+      socket.print("Content-Type: application/x-www-form-urlencoded\n");
+      if (string.length() > 0) {
+        socket.print("Content-Length: ");
+        socket.print(string.length());
+      }
+      socket.print("\n\n");
+
+      socket.print(string);
+
+      if (socket.connected()) {
+        Serial.println("Successfully sent message!");
+
+        failedCounter = 0;
+        return true;
+      } else {
+        failedCounter++;
+
+        Serial.println("Connection to host failed (" + String(failedCounter, DEC) + ")");
+        Serial.println();
+      }
+    } else {
+      failedCounter++;
+
+      Serial.println("Connection to host Failed (" + String(failedCounter, DEC) + ")");
+      Serial.println();
+    }
+  #endif
+  if (failedCounter >= 20) {
+    startWiFi();
+    failedCounter = 0;
     return false;
   }
 }
@@ -128,7 +233,6 @@ class DHT22Sensor : public Sensor {
       }
     }
 };
-
 
 class ThermistorSensor : public Sensor {
   protected:
@@ -245,7 +349,7 @@ class ThingspeakOutput : public Output {
 class CustomDataServerOutput : public Output {
   public:
     CustomDataServerOutput() {
-      sendHTTP(CUSTOM_DATA_SERVER_HOST, 3000, "GET /arduino/" + ARDUINO_NAME + "/init", ""); // TODO: Host on AWS and get actual IP
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 3000, "GET /arduino/" + ARDUINO_NAME + "/init", ""); // TODO: Host on AWS and get actual IP
     }
 
     void outputData(String headers[], float data[], int dataLength) {
@@ -256,7 +360,7 @@ class CustomDataServerOutput : public Output {
           strData += "&";
         }
       }
-      sendHTTP(CUSTOM_DATA_SERVER_HOST, 3000, "POST /arduino/" + ARDUINO_NAME + "/addData", strData);
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 3000, "POST /arduino/" + ARDUINO_NAME + "/addData", strData);
     }
 };
 
@@ -281,9 +385,13 @@ void setup() {}
 
 void loop() {
   Serial.begin(9600);
-  Sensor* sensors[] = {new DHT22Sensor(2), new ThermistorSensor(1), new ThermocoupleSensor(2), new TippingBucket(7)};
-  int sensorsLength = 4;
-  Output* outputs[] = {new SerialOutput(), new ThingspeakOutput()};
+  while(!Serial);
+  Serial.println("Starting up");
+  initShields();
+  startWiFi();
+  Sensor* sensors[] = {new ThermocoupleSensor(2), new TippingBucket(7)};
+  int sensorsLength = 2;
+  Output* outputs[] = {new SerialOutput(), new CustomDataServerOutput()};
   int outputsLength = 2;
   while (true) {
     int valsLength = 0;
@@ -300,7 +408,8 @@ void loop() {
         vals[currVal++] = sensors[i]->getValue(n);
       }
       for (int n = 0; n < num; n++) {
-        headers[currHeader++] = sensors[i]->getValueName(n);
+        String tmp = sensors[i]->getValueName(n);
+        headers[currHeader++] = tmp;
       }
     }
     for (int n = 0; n < outputsLength; n++) {
