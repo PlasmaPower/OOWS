@@ -392,9 +392,9 @@ void loop() {
   Serial.println("Starting up");
   initShields();
   startWiFi();
-  Sensor* sensors[] = {new ThermocoupleSensor(2), new TippingBucket(7)};
+  Sensor* sensors[] = SENSORS;
   int sensorsLength = 2;
-  Output* outputs[] = {new SerialOutput(), new CustomDataServerOutput()};
+  Output* outputs[] = OUTPUTS;
   int outputsLength = 2;
   while (true) {
     int valsLength = 0;
