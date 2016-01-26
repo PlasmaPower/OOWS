@@ -93,6 +93,7 @@ void startWiFi() {
     } else {
       Serial.println("Failed to connect to " + String(NETWORK));
     }
+    delay(5000);
   #endif
 }
 
@@ -162,13 +163,15 @@ boolean sendHTTP(uint32_t ip, int port, String request, String string) {
         socket.print(string.length());
       }
       socket.print("\n\n");
-
       socket.print(string);
+
+      delay(1000);
 
       if (socket.connected()) {
         Serial.println("Successfully sent message!");
 
         failedCounter = 0;
+        socket.close();
         return true;
       } else {
         failedCounter++;
@@ -349,7 +352,7 @@ class ThingspeakOutput : public Output {
 class CustomDataServerOutput : public Output {
   public:
     CustomDataServerOutput() {
-      sendHTTP(CUSTOM_DATA_SERVER_IP, 3000, "GET /arduino/" + ARDUINO_NAME + "/init", ""); // TODO: Host on AWS and get actual IP
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "GET /arduino/" + ARDUINO_NAME + "/init", "");
     }
 
     void outputData(String headers[], float data[], int dataLength) {
@@ -360,7 +363,7 @@ class CustomDataServerOutput : public Output {
           strData += "&";
         }
       }
-      sendHTTP(CUSTOM_DATA_SERVER_IP, 3000, "POST /arduino/" + ARDUINO_NAME + "/addData", strData);
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "POST /arduino/" + ARDUINO_NAME + "/addData", strData);
     }
 };
 
