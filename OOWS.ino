@@ -12,7 +12,6 @@
 #define THERM_RESISTOR 10000
 
 #define WIFI_CONNECT_ATTEMPTS 4
-#define CC3000_SHIELD
 
 #ifdef WIFI_SHIELD
   #include <WiFi.h>
