@@ -265,6 +265,7 @@ class ThermistorSensor : public Sensor {
 
 };
 
+// WIP
 class ThermocoupleSensor : public Sensor {
   protected:
     int pin;
