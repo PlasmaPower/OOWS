@@ -105,7 +105,7 @@ float readVoltage(int pin) {
   return analogRead(pin) * AREF_VOLTAGE / 1023.0;
 }
 
-boolean sendHTTP(String host, int port, String request, String string) {
+boolean sendHTTP(String host, int port, String request, String headers, String string) {
   #ifdef WIFI_SHIELD
     Serial.println("Sending HTTP message...");
     client.stop();
@@ -118,6 +118,7 @@ boolean sendHTTP(String host, int port, String request, String string) {
         client.print("Content-Length: ");
         client.print(string.length());
       }
+      client.print(headers);
       client.print("\n\n");
 
       client.print(string);
@@ -149,7 +150,7 @@ boolean sendHTTP(String host, int port, String request, String string) {
   }
 }
 
-boolean sendHTTP(uint32_t ip, int port, String request, String string) {
+boolean sendHTTP(uint32_t ip, int port, String request, String headers, String string) {
   #ifdef CC3000_SHIELD
     Serial.println("Sending HTTP message...");
     Adafruit_CC3000_Client socket = cc3000.connectTCP(ip, port);
@@ -161,6 +162,7 @@ boolean sendHTTP(uint32_t ip, int port, String request, String string) {
         socket.print("Content-Length: ");
         socket.print(string.length());
       }
+      socket.print(headers);
       socket.print("\n\n");
       socket.print(string);
 
@@ -345,14 +347,14 @@ class ThingspeakOutput : public Output {
           tsData += "&";
         }
       }
-      sendHTTP("api.thingspeak.com", 80, "POST /update", tsData);
+      sendHTTP("api.thingspeak.com", 80, "POST /update", "X-THINGSPEAKAPIKEY: " + APIKEY + "\n", tsData);
     }
 };
 
 class CustomDataServerOutput : public Output {
   public:
     CustomDataServerOutput() {
-      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "GET /arduino/" + ARDUINO_NAME + "/init", "");
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "GET /arduino/" + ARDUINO_NAME + "/init", "", "");
     }
 
     void outputData(String headers[], float data[], int dataLength) {
@@ -363,7 +365,7 @@ class CustomDataServerOutput : public Output {
           strData += "&";
         }
       }
-      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "POST /arduino/" + ARDUINO_NAME + "/addData", strData);
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "POST /arduino/" + ARDUINO_NAME + "/addData", "", strData);
     }
 };
 
