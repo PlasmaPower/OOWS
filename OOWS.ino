@@ -1,6 +1,8 @@
 #include <SPI.h>
 #include <DHT.h>
 
+#include "sensor.h"
+#include "ultrasonic.h"
 #include "config.h"
 
 #define THERM_A_COEFFICIENT 0.003354015
@@ -194,13 +196,6 @@ boolean sendHTTP(uint32_t ip, int port, String request, String headers, String s
   }
 }
 
-class Sensor {
-  public:
-    int virtual getNumberOfValues() = 0;
-    float virtual getValue(int num) = 0;
-    String virtual getValueName(int num) = 0;
-};
-
 class DHT22Sensor : public Sensor {
   protected:
     DHT dht;
@@ -265,32 +260,6 @@ class ThermistorSensor : public Sensor {
       return "thermistor_pin_" + String(pin) + "_temperature";
     }
 
-};
-
-// WIP
-class ThermocoupleSensor : public Sensor {
-  protected:
-    int pin;
-
-  public:
-    ThermocoupleSensor(int pin) {
-      this->pin = pin;
-    }
-
-    int getNumberOfValues() {
-      return 1;
-    }
-
-    float getValue(int num) {
-      float V = readVoltage(pin);
-      float thermoTemperature = T0 + ((V - V0) * (P1 + (V - V0) * (P2 + (V - V0) * (P3 + P4 * (V - V0))))) / (1 + (V - V0) * (Q1 + (V - V0) * (Q2 + Q3 * (V - V0))));
-
-      return thermoTemperature;
-    }
-
-    String getValueName(int num) {
-      return "thermocouple_pin_" + String(pin) + "_temperature";
-    }
 };
 
 volatile int tippingBucketCount;
