@@ -191,6 +191,9 @@ class UltrasonicSensor : public Sensor {
     this->sonarPower = sonarPower;
     this->sonarEcho = sonarEcho;
     this->sonarInit = sonarInit;
+    #ifdef USE_TIMER2
+      timer2.setup();
+    #endif
   }
 
   int getNumberOfValues() {
