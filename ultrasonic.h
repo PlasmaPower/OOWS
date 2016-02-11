@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef ULTRASONIC
+
 //#define USE_TIMER2
 
 #ifdef USE_TIMER2
@@ -209,4 +211,5 @@ class UltrasonicSensor : public Sensor {
   }
 };
 
+#endif
 

@@ -323,7 +323,7 @@ class ThingspeakOutput : public Output {
 class CustomDataServerOutput : public Output {
   public:
     CustomDataServerOutput() {
-      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "GET /arduino/" + ARDUINO_NAME + "/init", "", "");
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "GET /arduino/" + ARDUINO_NAME + "/init", "X-Password: " + CUSTOM_DATA_SERVER_PASSWORD + "\n", "");
     }
 
     void outputData(String headers[], float data[], int dataLength) {
@@ -334,7 +334,7 @@ class CustomDataServerOutput : public Output {
           strData += "&";
         }
       }
-      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "POST /arduino/" + ARDUINO_NAME + "/addData", "", strData);
+      sendHTTP(CUSTOM_DATA_SERVER_IP, 80, "POST /arduino/" + ARDUINO_NAME + "/addData", "X-Password: " + CUSTOM_DATA_SERVER_PASSWORD + "\n", strData);
     }
 };
 
