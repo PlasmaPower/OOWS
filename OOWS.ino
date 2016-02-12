@@ -280,7 +280,7 @@ class TippingBucket : public Sensor {
       }
       this->pin = pin;
     }
-      
+
     int getNumberOfValues() {
       return 1;
     }
