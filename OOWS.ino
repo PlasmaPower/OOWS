@@ -364,9 +364,9 @@ void loop() {
   initShields();
   startWiFi();
   Sensor* sensors[] = SENSORS;
-  int sensorsLength = 2;
+  int sensorsLength = SENSORS_LENGTH;
   Output* outputs[] = OUTPUTS;
-  int outputsLength = 2;
+  int outputsLength = OUTPUTS_LENGTH;
   while (true) {
     int valsLength = 0;
     for (int i = 0; i < sensorsLength; i++) {
