@@ -1,3 +1,8 @@
+#include "dht.h"
+#include "serial.h"
+
+#define DHT
+
 #define ARDUINO_NAME String("Name")
 #define NETWORK "Network_Name"
 #define APIKEY String("0123456789ABCDEF")
