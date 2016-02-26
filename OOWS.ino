@@ -1,9 +1,9 @@
 #include <SPI.h>
 #include <DHT.h>
 
+#include "config.h"
 #include "sensor.h"
 #include "ultrasonic.h"
-#include "config.h"
 
 #define THERM_A_COEFFICIENT 0.003354015
 #define THERM_B_COEFFICIENT 0.000256277
@@ -22,6 +22,12 @@
 #ifdef CC3000_SHIELD
   #define CC3000_TINY_DRIVER
   #include <Adafruit_CC3000.h>
+#endif
+
+#ifdef DATALOGGER
+  #include <Wire.h>
+  #include <SD.h>
+  #include <RTClib.h>
 #endif
 
 //Thermocouple Constants http://www.mosaic-industries.com/embedded-systems/microcontroller-projects/temperature-measurement/thermocouple/type-t-calibration-table
@@ -354,6 +360,65 @@ class SerialOutput : public Output {
       Serial.println();
     }
 };
+
+#ifdef DATALOGGER
+class SDCardOutput : public Output {
+  protected:
+    File file;
+    RTC_DS1307 RTC;
+    bool printedHeaders;
+
+  public:
+    SDCardOutput() {
+      if (!SD.begin(10, 11, 12, 13)) {
+       Serial.println("Failed to initialize SD card");
+      }
+      if (!RTC.begin()) {
+        Serial.println("Failed to initialize Real Time Clock");
+      }
+      if (!RTC.isrunning()) {
+        RTC.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      }
+      int filenumber = 0;
+      while (true) {
+        String filenameStr = "DATA" + String(filenumber) + ".CSV";
+        int len = filenameStr.length() + 1;
+        char filename[len];
+        filenameStr.toCharArray(filename, len);
+        if (!SD.exists(filename)) {
+          file = SD.open(filename, FILE_WRITE);
+          break;
+        }
+        filenumber++;
+      }
+      printedHeaders = false;
+    }
+
+    void outputData(String headers[], float data[], int dataLength) {
+      DateTime now = RTC.now();
+      if (!printedHeaders) {
+        file.print("unixTime,");
+        for (int i = 0; i < dataLength; i++) {
+          file.print(String(headers[i]));
+          if (i < dataLength - 1) {
+            file.print(",");
+          }
+        }
+        file.println();
+        printedHeaders = true;
+      }
+      file.print(now.unixtime());
+      file.print(",");
+      for (int i = 0; i < dataLength; i++) {
+        file.print(String(data[i]));
+        if (i < dataLength - 1) {
+          file.print(",");
+        }
+      }
+      file.println();
+    }
+};
+#endif
 
 void setup() {}
 
