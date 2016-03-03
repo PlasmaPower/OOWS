@@ -454,6 +454,6 @@ void loop() {
     for (int n = 0; n < outputsLength; n++) {
       outputs[n]->outputData(headers, vals, valsLength);
     }
-    delay(5000);
+    delay(DELAY);
   }
 }

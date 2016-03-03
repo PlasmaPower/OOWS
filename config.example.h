@@ -7,3 +7,4 @@
 #define SENSORS_LENGTH 1
 #define OUTPUTS {new SerialOutput()}
 #define OUTPUTS_LENGTH 1
+#define DELAY 5000
