@@ -346,7 +346,10 @@ class CustomDataServerOutput : public Output {
 
 class SerialOutput : public Output {
   public:
-    SerialOutput() {}
+    SerialOutput() {
+      while(!Serial);
+      Serial.println("Starting up");
+    }
 
     void outputData(String headers[], float data[], int dataLength) {
       for (int i = 0; i < dataLength; i++) {
@@ -424,8 +427,6 @@ void setup() {}
 
 void loop() {
   Serial.begin(9600);
-  while(!Serial);
-  Serial.println("Starting up");
   initShields();
   startWiFi();
   Sensor* sensors[] = SENSORS;
