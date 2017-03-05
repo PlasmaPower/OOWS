@@ -419,6 +419,7 @@ class SDCardOutput : public Output {
         }
       }
       file.println();
+      file.flush();
     }
 };
 #endif
